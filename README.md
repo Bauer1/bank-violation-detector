@@ -50,8 +50,10 @@ python scripts/train.py --videos "D:\hackathon\videos"
 ## Запуск сервиса
 
 ```powershell
-$juryKey = python -c "import secrets; print(secrets.token_urlsafe(32))"
-"JURY_API_KEY=$juryKey" | Set-Content -Encoding ascii .env
+if (-not (Test-Path .env)) {
+  $juryKey = python -c "import secrets; print(secrets.token_urlsafe(32))"
+  "JURY_API_KEY=$juryKey" | Set-Content -Encoding ascii .env
+}
 streamlit run app/streamlit_app.py           # веб-интерфейс  → http://localhost:8501
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1  # REST API → http://localhost:8000/docs
 ```
