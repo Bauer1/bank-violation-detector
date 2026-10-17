@@ -50,14 +50,43 @@ python scripts/train.py --videos "D:\hackathon\videos"
 ## Запуск сервиса
 
 ```powershell
+$juryKey = python -c "import secrets; print(secrets.token_urlsafe(32))"
+"JURY_API_KEY=$juryKey" | Set-Content -Encoding ascii .env
 streamlit run app/streamlit_app.py           # веб-интерфейс  → http://localhost:8501
-uvicorn api.main:app --port 8000             # REST API       → http://localhost:8000/docs
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1  # REST API → http://localhost:8000/docs
 ```
 
 ```bash
-curl -F "file=@X-15.mov" http://localhost:8000/predict
+curl -H "X-API-Key: <ключ-из-.env>" -F "file=@X-15.mov" http://localhost:8000/predict
 ```
 Ответ: `verdict, violation, probability, threshold, timestamp_sec, violation_type, violation_type_ru, type_probabilities, timeline[], keyframe_jpg_base64`.
+
+### API для жюри
+
+API жюри принимает только `.mov`, проверяет заголовок `X-API-Key` и выполняет анализ в два шага. Ключ хранится в `.env`, который не попадает в Git:
+
+```powershell
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
+```
+
+Загрузить видео:
+
+```bash
+curl -X POST "https://<публичный-домен>/api/v1/analyze" \
+  -H "X-API-Key: <ключ-жюри>" \
+  -F "file=@video_017.mov"
+```
+
+Ответ содержит `job_id`. Запрашивайте статус по адресу `GET /api/v1/jobs/{job_id}` с тем же заголовком. Статус будет `processing`, `done` или `failed`; при `done` ответ содержит `verdict` (`no_violation` или `violation`) и список `violations` с таймкодом, описанием и кадром JPEG в base64. Не отправляйте ключ в GitHub или в URL.
+
+Для локальной Docker-сборки нужны обученная модель `artifacts/model.joblib` и веса `yolov8s.pt`. Сборка включает их в образ, но исключает датасет, кэш и файл `.env`:
+
+```powershell
+docker build -t bank-violation-detector .
+docker run --rm --env-file .env -p 8000:8000 bank-violation-detector uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
+```
+
+Сервис и модели должны работать на инфраструктуре команды с публичным HTTPS-адресом; при обработке тестовые видео не отправляются во внешние AI API. Не сохраняйте тестовые видео после обработки.
 
 В ответе API дополнительно передаются краткое описание наблюдаемого сигнала и нормативный контекст: постановление Правления НБРК от 29 ноября 2019 года № 231. Ссылка дана как общий контекст, она не подтверждает нарушение конкретного пункта: видеозапись не показывает системные проводки и другие невизуальные данные.
 
