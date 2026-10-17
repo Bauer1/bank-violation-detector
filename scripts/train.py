@@ -44,8 +44,17 @@ def main():
     ap.add_argument("--labels", default=str(CFG.labels_path))
     args = ap.parse_args()
 
-    labels = load_labels(Path(args.labels))
-    videos = find_videos(Path(args.videos))
+    videos_dir = Path(args.videos).expanduser()
+    labels_path = Path(args.labels).expanduser()
+    if not labels_path.is_file():
+        ap.error(f"не найден Excel с разметкой: {labels_path}. Передайте его путь через --labels")
+    if not videos_dir.is_dir():
+        ap.error(f"папка с видео не найдена: {videos_dir}. Укажите распакованную папку с .mov")
+
+    labels = load_labels(labels_path)
+    videos = find_videos(videos_dir)
+    if not videos:
+        ap.error(f"в папке и её подпапках нет поддерживаемых видео: {videos_dir}")
     ids = [v for v in labels if v in videos]
     missing = [v for v in labels if v not in videos]
     unlabeled = [v for v in videos if v not in labels]
@@ -54,6 +63,10 @@ def main():
         print("  нет файла для:", missing)
     if unlabeled:
         print("  без разметки (не участвуют в обучении):", unlabeled)
+    if not ids:
+        ap.error("имена найденных видео не совпали с ID из Excel (например, X-1.mov); обучение остановлено")
+    if len(ids) < 2:
+        ap.error("для leave-one-video-out валидации нужны минимум 2 совпавших видео")
 
     ext = {}
 

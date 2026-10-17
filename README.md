@@ -41,8 +41,10 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available()); pr
 
 ## Обучение
 
+Репозиторий не содержит датасет: передайте путь к распакованным видео и к Excel-разметке из набора организаторов. Имена файлов должны содержать ID роликов, например `X-1.mov` или `Х-1.mov` (латинская или кириллическая «Х»). Укажите реальные пути на своём компьютере:
+
 ```powershell
-python scripts/train.py --videos "D:\hackathon\videos"
+python scripts/train.py --videos "D:\путь\к\датасету\videos" --labels "D:\путь\к\датасету\labels.xlsx"
 ```
 Признаки кэшируются в `cache/features`, поэтому повторный запуск занимает секунды. Результаты:
 `artifacts/model.joblib`, `artifacts/cv_report.json`, `artifacts/lovo_predictions.csv`.
