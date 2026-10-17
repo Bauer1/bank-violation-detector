@@ -54,8 +54,16 @@ if (-not (Test-Path .env)) {
   $juryKey = python -c "import secrets; print(secrets.token_urlsafe(32))"
   "JURY_API_KEY=$juryKey" | Set-Content -Encoding ascii .env
 }
-streamlit run app/streamlit_app.py           # веб-интерфейс  → http://localhost:8501
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1  # REST API → http://localhost:8000/docs
+```
+
+Выполните генерацию ключа один раз. Затем запустите команды ниже в двух отдельных терминалах:
+
+```powershell
+streamlit run app/streamlit_app.py
+```
+
+```powershell
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
 ```bash
