@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+cache/
+data/
+artifacts/
+Ultralytics/
+yolov8s.pt
+.env
+.env.*
+!.env.example
