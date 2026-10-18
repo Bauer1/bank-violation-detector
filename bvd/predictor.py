@@ -9,7 +9,7 @@ import cv2
 import joblib
 import numpy as np
 
-from .config import CFG, COCO_BAGS, COCO_PERSON, COCO_PHONE, VIOLATION_TYPES
+from .config import CFG, COCO_BAGS, COCO_PERSON, COCO_PHONE, VIOLATION_EXPLANATIONS, VIOLATION_TYPES
 from .features import FeatureExtractor
 from .video import read_frames
 
@@ -50,7 +50,17 @@ class Predictor:
         if not Path(model_path).exists():
             raise FileNotFoundError(f"Модель не найдена: {model_path}. Сначала запустите scripts/train.py")
         self.model = joblib.load(model_path)
+        # Порог из обучения (0.657) слишком консервативен: пропуск нарушения недопустим.
+        self.model.threshold = CFG.inference_threshold
         self.extractor = FeatureExtractor(device)
+
+    @staticmethod
+    def _description(t: float, vtype: str | None) -> str:
+        name = VIOLATION_TYPES.get(vtype, "возможное нарушение")
+        why = VIOLATION_EXPLANATIONS.get(vtype, "наблюдаемые действия отличаются от обычного порядка работы кассы.")
+        return (f"Около {t:.1f} с на видео: {name.lower()}. Что видно: {why} "
+                f"Нормативный контекст: {REGULATORY_CONTEXT['document']} "
+                f"«{REGULATORY_CONTEXT['title']}». Требуется проверка человеком.")
 
     def predict(self, video_path: str | Path) -> dict:
         t0 = time.time()
@@ -64,8 +74,16 @@ class Predictor:
                  else f"OK  max p={r['score']:.2f} at {r['peak_time']:.1f}s")
         key = _draw(frames[i], dets, title, r["violation"])
 
+        # 1–3 кадра-доказательства: размеченный пиковый кадр + соседние (±0.5 с при 2 fps)
+        evidence = [(float(times[i]), key)]
+        if r["violation"]:
+            for j in (i - 1, i + 1):
+                if 0 <= j < len(frames):
+                    evidence.append((float(times[j]), frames[j]))
+            evidence.sort(key=lambda e: e[0])
+
         return {
-            "verdict": "обнаружены признаки возможного нарушения" if r["violation"] else "нарушений не обнаружено",
+            "verdict": "обнаружены признаки возможных нарушений" if r["violation"] else "нарушение не обнаружено",
             "violation": r["violation"],
             "probability": round(r["score"], 4),
             "threshold": round(float(self.model.threshold), 4),
@@ -73,21 +91,24 @@ class Predictor:
             "peak_time_sec": round(r["peak_time"], 1),
             "violation_type": r["type"] if r["violation"] else None,
             "violation_type_ru": VIOLATION_TYPES.get(r["type"]) if r["violation"] and r["type"] else None,
-            "description": (f"На кадре около {r['peak_time']:.1f} с модель отметила визуальные признаки: "
-                            f"{VIOLATION_TYPES.get(r['type'], 'возможное нарушение')}. Требуется проверка человеком."
-                            if r["violation"] else None),
+            "description": self._description(r["peak_time"], r["type"]) if r["violation"] else None,
             "regulatory_context": REGULATORY_CONTEXT if r["violation"] else None,
             "review_note": "Результат — подсказка для проверки человеком, а не юридическое или дисциплинарное заключение.",
             "type_probabilities": {k: round(v, 4) for k, v in r["type_probs"].items()},
             "duration_sec": round(float(duration), 1),
             "timeline": [{"t": round(float(t), 2), "p": round(float(p), 4)} for t, p in zip(r["times"], r["probs"])],
             "keyframe_rgb": key,
+            "evidence_rgb": evidence,
             "processing_sec": round(time.time() - t0, 2),
         }
 
     @staticmethod
+    def encode_jpg(img_rgb: np.ndarray) -> str | None:
+        ok, buf = cv2.imencode(".jpg", cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR))
+        return base64.b64encode(buf).decode() if ok else None
+
+    @staticmethod
     def to_json(res: dict) -> dict:
-        out = {k: v for k, v in res.items() if k != "keyframe_rgb"}
-        ok, buf = cv2.imencode(".jpg", cv2.cvtColor(res["keyframe_rgb"], cv2.COLOR_RGB2BGR))
-        out["keyframe_jpg_base64"] = base64.b64encode(buf).decode() if ok else None
+        out = {k: v for k, v in res.items() if k not in ("keyframe_rgb", "evidence_rgb")}
+        out["keyframe_jpg_base64"] = Predictor.encode_jpg(res["keyframe_rgb"])
         return out

@@ -8,6 +8,9 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from bvd.config import VIOLATION_TYPES  # noqa: E402
 from bvd.predictor import Predictor  # noqa: E402
 
@@ -49,21 +52,27 @@ if res is None or st.session_state.get("res_name") != up.name:
 
 with col_r:
     if res["violation"]:
-        st.warning(f"### ⚠️ Обнаружены признаки возможного нарушения  \nна **{res['timestamp_sec']:.1f} с**")
+        st.warning(f"### ⚠️ Обнаружены признаки возможных нарушений  \nтаймкод: **{res['timestamp_sec']:.1f} с**")
         if res["violation_type_ru"]:
-            st.markdown(f"**Вероятный тип:** {res['violation_type_ru']}")
-        st.write(res["description"])
+            st.markdown(f"**Тип:** {res['violation_type_ru']}")
+        st.markdown(f"**Описание:** {res['description']}")
         source = res["regulatory_context"]
-        st.markdown(f"**Нормативный контекст:** [{source['document']}]({source['url']})")
+        st.markdown(f"**Правило и источник:** {source['title']} — [{source['document']}]({source['url']})")
         st.caption(source["note"])
     else:
-        st.success("### ✅ Нарушений не обнаружено")
+        st.success("### ✅ Нарушение не обнаружено")
     st.caption(res["review_note"])
     c1, c2, c3 = st.columns(3)
     c1.metric("Уверенность", f"{res['probability']:.0%}")
     c2.metric("Порог", f"{res['threshold']:.0%}")
     c3.metric("Обработка", f"{res['processing_sec']} с")
     st.image(res["keyframe_rgb"], caption=f"Ключевой кадр ({res['peak_time_sec']:.1f} с)", use_container_width=True)
+
+if res["violation"] and len(res.get("evidence_rgb", [])) > 1:
+    st.subheader("Кадры-доказательства")
+    cols = st.columns(len(res["evidence_rgb"]))
+    for c, (t, img) in zip(cols, res["evidence_rgb"]):
+        c.image(img, caption=f"{t:.1f} с", use_container_width=True)
 
 st.subheader("Вероятность нарушения по времени")
 df = pd.DataFrame(res["timeline"])

@@ -75,15 +75,16 @@ def _jury_result(job_id: str, prediction: dict) -> dict:
     verdict = "violation" if prediction["violation"] else "no_violation"
     violations = []
     if prediction["violation"]:
-        encoded_frame = Predictor.to_json(prediction).get("keyframe_jpg_base64")
+        evidence = [
+            {"timestamp_sec": round(t, 1), "image_base64": b64}
+            for t, img in prediction.get("evidence_rgb", [])[:3]
+            if (b64 := Predictor.encode_jpg(img))
+        ]
         violations.append({
-            "type": prediction.get("violation_type") or prediction.get("violation_type_ru"),
+            "type": prediction.get("violation_type_ru") or prediction.get("violation_type") or "Возможное нарушение",
             "timecode_sec": prediction["timestamp_sec"],
             "description": prediction.get("description") or "",
-            "evidence_frames": ([{
-                "timestamp_sec": prediction["timestamp_sec"],
-                "image_base64": encoded_frame,
-            }] if encoded_frame else []),
+            "evidence_frames": evidence,
         })
     return {
         "job_id": job_id,
@@ -182,14 +183,7 @@ async def predict(file: UploadFile = File(...)):
     video_path = await _save_upload(file)
     try:
         prediction = get_predictor().predict(video_path)
-        result = {k: v for k, v in prediction.items() if k != "keyframe_rgb"}
-        image = prediction.get("keyframe_rgb")
-        if image is not None:
-            import cv2
-
-            ok, buffer = cv2.imencode(".jpg", cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-            result["keyframe_jpg_base64"] = base64.b64encode(buffer).decode() if ok else None
-        return result
+        return Predictor.to_json(prediction)
     except (OSError, IOError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
