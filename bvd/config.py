@@ -70,11 +70,11 @@ VIOLATION_TYPES = {
 }
 
 VIDEO_TYPE = {
-    **{v: "UNATTENDED_CASH_DESK" for v in ["X-4", "X-11", "X-15", "X-22", "X-24", "X-26", "X-28"]},
+    **{v: "UNATTENDED_CASH_DESK" for v in ["X-11", "X-15", "X-22", "X-24", "X-26", "X-28"]},
     **{v: "THIRD_PARTY_INTRUSION" for v in ["X-18", "X-30", "X-34", "X-38"]},
     **{v: "INCASSATION_BAG_VIOLATION" for v in ["X-17", "X-40"]},
     **{v: "SAFE_AND_STORAGE_VIOLATION" for v in ["X-13", "X-20", "X-32", "X-33"]},
-    **{v: "DESK_CASH_HANDLING_VIOLATION" for v in ["X-1", "X-2", "X-44", "X-46", "X-47"]},
+    **{v: "DESK_CASH_HANDLING_VIOLATION" for v in ["X-1", "X-2", "X-4", "X-44", "X-46", "X-47"]},
 }
 
 # Текстовые подсказки для zero-shot признаков CLIP

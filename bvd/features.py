@@ -3,6 +3,7 @@ YOLO people/objects layout, motion energy."""
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
 
 import cv2
@@ -17,6 +18,17 @@ from .video import read_frames
 N_TOP_PERSONS = 3
 MOTION_GRID = 4
 FEATURE_SCHEMA = 2
+
+
+class _DropHalfDeprecation(logging.Filter):
+    """Новые версии Ultralytics пишут "'half' is deprecated" на каждый вызов predict.
+    half=True оставляем намеренно: модель обучена на FP16-признаках."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "'half' is deprecated" not in record.getMessage()
+
+
+logging.getLogger("ultralytics").addFilter(_DropHalfDeprecation())
 
 
 def _pad_square(img: np.ndarray) -> Image.Image:
